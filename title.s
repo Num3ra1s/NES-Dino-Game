@@ -4,7 +4,7 @@
 ;;{pal:"nes",layout:"nes"};;
 _title_pal:
  .byte $30,$0C,$0C,$21,$0F,$0C,$21,$21
- .byte $0F,$0C,$0C,$21,$0F,$26,$26,$30
+ .byte $0F,$15,$23,$26,$0F,$16,$16,$16
 ;;
 ;;{w:32,h:30,bpp:8,comp:"rletag",map:"nesnt"};;
 _title_rle:

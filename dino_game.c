@@ -23,13 +23,12 @@ extern const byte title_rle[];
 
 /// GLOBAL VARIABLES
 
-word x_scroll;		// X scroll amount in pixels
-unsigned int distance;	// distance player has gone
-word scroll_speed = 1;
-bool draw_obs;		// randomization of obstacle drawing
-bool game_over = false;
-bool intro = true;
-byte loop_count;
+word x_scroll;		// x scroll amount in pixels
+unsigned int distance;	// distance player has gone 
+bool draw_obs;		// bool for randomization of obstacle drawing
+bool game_over = false;	// game status
+bool intro = true;	// intro status
+byte loop_count;	// loop counter
 
 typedef struct Obstacle {
   int x;
@@ -59,10 +58,8 @@ Player player;
 #define GROUND5 0xee
 #define GROUND6 0xf0
 #define CACTUS 0xd2
-#define TEST 0xf4
 #define ATTR 0
 
-//dino metasprites
 const unsigned char dino[]={
         0,      0,      0,        ATTR, 
         0,      8,      DINO+1,   ATTR, 
@@ -76,7 +73,7 @@ const unsigned char dino[]={
         128};
 
 const unsigned char dinostep1[]={
-        0,      0,      0,       ATTR, 
+        0,      0,      0,        ATTR, 
         0,      8,      DINO+1,   ATTR, 
         0,      16,     DINO+8,   ATTR, 
         8,      0,      DINO+3,   ATTR, 
@@ -122,17 +119,17 @@ const unsigned char cactus[]={
 
 /*{pal:"nes",layout:"nes"}*/
 const char PALETTE[32] = { 
-  0x00,			// background color
+  0x00,	// screen color
 
-  0x0D,0x38,0x27,0x00,	// ladders and pickups
-  0x0D,0x36,0x2C,0x00,	// floor blocks
-  0x00,0x10,0x20,0x00,
-  0x06,0x16,0x26,0x00,
+  0x00,0x00,0x00,0x00,	// background 1
+  0x00,0x00,0x00,0x00,	// background 2
+  0x00,0x00,0x00,0x00,	// background 3
+  0x00,0x00,0x00,0x00,	// background 4
 
-  0x0C,0x37,0x26,0x00,	// enemy sprites
-  0x00,0x38,0x27,0x00,	// rescue person
-  0x0D,0x2D,0x1A,0x00,
-  0x0D,0x27,0x2A	// player sprites
+  0x0C,0x0C,0x0C,0x00,	// sprite 1
+  0x00,0x00,0x00,0x00,	// sprite 2
+  0x00,0x00,0x00,0x00,	// sprite 3
+  0x00,0x00,0x00	// sprite 4
 };
 
 // number of rows in scrolling playfield (without status bar)
@@ -148,18 +145,21 @@ char ntbuf2[PLAYROWS];	// right side
 //   adr = start address in name table
 //   str = pointer to string
 void put_str(unsigned int adr, const char *str) {
-  vram_adr(adr);        // set PPU read/write address
+  vram_adr(adr); // set PPU read/write address
   vram_write(str, strlen(str)); // write bytes to PPU
 }
 
-// draw metatiles into nametable buffers
-// y is the metatile coordinate (row * 2)
-// ch is the starting tile index in the pattern table
+// draw ground metatile into nametable buffers
+// 	y is the metatile coordinate (row * 2)
+// 	ch is the starting tile index in the pattern table
 void set_ground_metatile(byte y, byte ch) {
   ntbuf1[y*2] = ch;
   ntbuf2[y*2] = ch+1;
 }
 
+// draw cactus metatile into nametable buffers
+// 	y is the metatile coordinate (row * 2)
+// 	ch is the starting tile index in the pattern table 
 void set_cactus_metatile(byte y, byte ch) {
   ntbuf1[y*2] = ch;
   ntbuf1[y*2+1] = ch+1;
@@ -170,13 +170,12 @@ void set_cactus_metatile(byte y, byte ch) {
 }
 
 // fill ntbuf with tile data
-// x = metatile coordinate
-void fill_buffer(byte x) {
+void fill_buffer() {
   byte y, i, ground_rand;
   // clear nametable buffers
   memset(ntbuf1, 0, sizeof(ntbuf1));
   memset(ntbuf2, 0, sizeof(ntbuf2));
-  x = 0;
+  
   //draw floor
   y = PLAYROWS/2-1-0;
   ground_rand = rand() % (14);
@@ -224,7 +223,7 @@ void update_offscreen() {
   // randomized whether to draw obstacle or not
   draw_obs = (rand() % (100 + 1) + 1) % 8 == 0;
   // fill the ntbuf arrays with tiles
-  fill_buffer(x/2);
+  fill_buffer();
   // get address in either nametable A or B
   if (x < 32)
     addr = NTADR_A(x, 4);
@@ -269,18 +268,7 @@ void scroll_left() {
   ++x_scroll;
 }
 
-void fill_start(){
-  byte y = PLAYROWS/2-1-0;
-  memset(ntbuf1, 0, sizeof(ntbuf1));
-  memset(ntbuf2, 0, sizeof(ntbuf2));
-  set_ground_metatile(y, GROUND4); 
-  /*for(x=0; x < 32; x++){
-    
-  }*/
-  
-  vrambuf_put((NTADR_A(10, 10)) | VRAMBUF_VERT, ntbuf1, PLAYROWS);
-}
-
+// fade in title screen
 void fade_in() {
   byte vb;
   for (vb=0; vb<=4; vb++) {
@@ -294,6 +282,9 @@ void fade_in() {
   }
 }
 
+// display title screen
+//	pal is the palette
+//	rle is the rle compressed nametable
 void show_title_screen(const byte* pal, const byte* rle) {
   // disable rendering
   ppu_off();
@@ -314,12 +305,10 @@ void dino_game() {
   bool start = false;
   int hover = -1;
   char sbuf[4];
-  char sbuf1[4];
   int animation = 0;
-  distance = 0;
-  
+  distance = 0; 
  
-  // get data for initial segment
+  // init game data
   x_scroll = 0;
   player.x = 50;
   player.y = 192;
@@ -327,19 +316,22 @@ void dino_game() {
   player.jumped = false;
   loop_count = 0;
   
-  vrambuf_put(NTADR_A(2, 1), sbuf1, strlen(sbuf1));
+  // clear start text
+  vrambuf_put(NTADR_A(2, 1), "", 0);
   
-  //fill_start();
-  
-  // infinite loop
+  // infinite loop, called ~29780 times per frame, 60 frames per second
   while (true) {
+    // check for game start
     if(!start){
+      // start game when start button pressed
       char pad = pad_poll(0);
       if(pad&PAD_START){
         start = true;
       }
     } 
+    // game started
     else {
+      // game playing
       if(game_over == false) {
         // get controller
         char pad = pad_poll(0);
@@ -348,14 +340,14 @@ void dino_game() {
         ppu_wait_nmi();
         vrambuf_clear();
 
-        // split at sprite zero and set X scroll
+        // split at sprite zero and sets X scroll register
         split(x_scroll, 0);
 
         // scroll to the left
         scroll_left();
         scroll_left();
 
-        //player jump     
+        // player jump     
         if(pad&PAD_A && !player.jumped){
           player.jumped = true;
           player.vel = 13;
@@ -369,7 +361,7 @@ void dino_game() {
           player.jumped = false;
         }
 
-        //draw player
+        // draw player
         if(animation % 2 == 0){
           oam_meta_spr(player.x, player.y, 4, dinostep1);
         }
@@ -377,12 +369,12 @@ void dino_game() {
           oam_meta_spr(player.x, player.y, 4, dinostep2);
         }
 
-        //increase animation
+        // increase animation counter
         if(loop_count % 15 == 0) {
           animation++;
         }
 
-        //increase distance
+        // increase distance counter
         if(loop_count % 45 == 0) {
           distance++;
 
@@ -390,12 +382,14 @@ void dino_game() {
           sprintf(sbuf, "Distance: %d", distance);
           vrambuf_put(NTADR_A(2, 2), sbuf, strlen(sbuf));
         }
-
+	
+        // increase loop counter
         loop_count++;
         if(loop_count > 60) {
           loop_count = 1;
         }
       }
+      // game ended
       else {      
         // ensure VRAM buffer is cleared
         ppu_wait_nmi();
@@ -404,19 +398,14 @@ void dino_game() {
         // split at sprite zero and set X scroll
         split(x_scroll, 0);
 
-        //draw player
+        // draw player
         oam_meta_spr(player.x, player.y, 4, dinodead); 
 
-        //increase animation
-        if(loop_count % 15 == 0) {
-          animation++;
-        }
-
-        //write distance
+        // write distance
         sprintf(sbuf, "Distance: %d", distance);
         vrambuf_put(NTADR_A(2, 2), sbuf, strlen(sbuf));
 
-        //write game over message
+        // write game over message
         vrambuf_put(NTADR_A(2, 3), "GAME OVER!", 9);
       }
     } 
@@ -425,14 +414,10 @@ void dino_game() {
 
 // main function, run after console reset
 void main(void) {
-  int i;
+  byte i;
   
   // set palette colors
   pal_all(PALETTE);
-  
-  // set attributes
-  vram_adr(0x23c0);
-  vram_fill(0x55, 8);
   
   // set sprite 0
   oam_clear();
@@ -455,7 +440,6 @@ void main(void) {
   // show title screen
   show_title_screen(title_pal, title_rle);
   
-  if(true) {
-    dino_game();
-  }
+  // play game
+  dino_game();
 }
